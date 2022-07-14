@@ -4,6 +4,7 @@ import { join } from "path";
 import { document } from '../utils/dynamodbClient'
 import * as handlebars from 'handlebars';
 import dayjs from "dayjs";
+import Chromium from "chrome-aws-lambda";
 
 interface ICreateCertificate {
     id: string;
@@ -60,6 +61,26 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     }
 
     const content = await compileTemplate(data);
+
+    const browser = await Chromium.puppeteer.launch({
+        args: Chromium.args,
+        defaultViewport: Chromium.defaultViewport,
+        executablePath: await Chromium.executablePath,
+    });
+
+    const page = await browser.newPage();
+
+    await page.setContent(content);
+
+    const pdf = await page.pdf({
+        format: 'a4',
+        landscape: true,
+        printBackground: true,
+        preferCSSPageSize: true,
+        path: process.env.IS_OFFLINE ? './certificate.pdf' : null
+    });
+
+    await browser.close();
 
     console.log(content);
 
