@@ -33,7 +33,10 @@ const serverlessConfiguration: AWS = {
       }
     ]
   },
-  // import the function via paths
+  package: {
+    individually: false,
+    include: ["./src/templates/**"]
+  },
   functions: {
     generateCertificate: {
       handler: "src/functions/generateCertificate.handler",
@@ -62,13 +65,12 @@ const serverlessConfiguration: AWS = {
       ]
     }
   },
-  package: { individually: true },
   custom: {
     esbuild: {
       bundle: true,
       minify: false,
       sourcemap: true,
-      exclude: ['aws-sdk','chrome-aws-lambda'],
+      exclude: ['aws-sdk', 'chrome-aws-lambda'],
       target: 'node14',
       define: { 'require.resolve': undefined },
       platform: 'node',
