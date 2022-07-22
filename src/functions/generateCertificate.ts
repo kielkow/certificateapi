@@ -6,6 +6,7 @@ import * as handlebars from 'handlebars';
 import dayjs from "dayjs";
 import Chromium from "chrome-aws-lambda";
 import { S3 } from 'aws-sdk';
+import { checkIfBucketExists } from "../utils/checkIfBucketExists";
 
 interface ICreateCertificate {
     id: string;
@@ -93,11 +94,14 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     const s3 = new S3();
 
-    await s3
+    const bucketExists = await checkIfBucketExists(s3, 'certificateserverlessnodejs');
+    if (!bucketExists) {
+        await s3
         .createBucket({
             Bucket: 'certificateserverlessnodejs'
         })
         .promise();
+    }
 
     await s3
         .putObject({
