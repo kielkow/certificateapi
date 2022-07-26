@@ -77,6 +77,19 @@ const serverlessConfiguration: AWS = {
         }
       ]
     },
+    deleteCertificate: {
+      handler: "src/functions/deleteCertificate.handler",
+      events: [
+        {
+          http: {
+            path: "deleteCertificate",
+            method: "delete",
+
+            cors: true
+          }
+        }
+      ]
+    },
   },
   custom: {
     esbuild: {
