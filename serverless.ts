@@ -63,7 +63,20 @@ const serverlessConfiguration: AWS = {
           }
         }
       ]
-    }
+    },
+    editCertificate: {
+      handler: "src/functions/editCertificate.handler",
+      events: [
+        {
+          http: {
+            path: "editCertificate",
+            method: "put",
+
+            cors: true
+          }
+        }
+      ]
+    },
   },
   custom: {
     esbuild: {
