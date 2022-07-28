@@ -31,93 +31,104 @@ const compileTemplate = async (data: ITemplate) => {
 }
 
 export const handler: APIGatewayProxyHandler = async (event) => {
-    const { id, name, grade } = JSON.parse(event.body) as ICreateCertificate;
+    try {
+        const { id, name, grade } = JSON.parse(event.body) as ICreateCertificate;
 
-    const response = await document
-        .query({
-            TableName: 'users_certificate',
-            KeyConditionExpression: "id = :id",
-            ExpressionAttributeValues: {
-                ":id": id
-            }
-        })
-        .promise();
-
-    const userAlreadyExists = response.Items[0];
-
-    if (!userAlreadyExists) {
-        await document
-            .put({
+        const response = await document
+            .query({
                 TableName: 'users_certificate',
-                Item: {
-                    id,
-                    name,
-                    grade,
-                    created_at: new Date().getTime(),
+                KeyConditionExpression: "id = :id",
+                ExpressionAttributeValues: {
+                    ":id": id
                 }
             })
             .promise();
-    }
 
-    const medalPath = join(process.cwd(), "src", "templates", "selo.png");
-    const medal = readFileSync(medalPath, "base64");
+        const userAlreadyExists = response.Items[0];
 
-    const data: ITemplate = {
-        id,
-        name,
-        grade,
-        medal,
-        date: dayjs().format("DD/MM/YYYY")
-    }
+        if (!userAlreadyExists) {
+            await document
+                .put({
+                    TableName: 'users_certificate',
+                    Item: {
+                        id,
+                        name,
+                        grade,
+                        created_at: new Date().getTime(),
+                    }
+                })
+                .promise();
+        }
 
-    const content = await compileTemplate(data);
+        const medalPath = join(process.cwd(), "src", "templates", "selo.png");
+        const medal = readFileSync(medalPath, "base64");
 
-    const browser = await Chromium.puppeteer.launch({
-        args: Chromium.args,
-        defaultViewport: Chromium.defaultViewport,
-        executablePath: await Chromium.executablePath,
-    });
+        const data: ITemplate = {
+            id,
+            name,
+            grade,
+            medal,
+            date: dayjs().format("DD/MM/YYYY")
+        }
 
-    const page = await browser.newPage();
+        const content = await compileTemplate(data);
 
-    await page.setContent(content);
+        const browser = await Chromium.puppeteer.launch({
+            args: Chromium.args,
+            defaultViewport: Chromium.defaultViewport,
+            executablePath: await Chromium.executablePath,
+        });
 
-    const pdf = await page.pdf({
-        format: 'a4',
-        landscape: true,
-        printBackground: true,
-        preferCSSPageSize: true,
-        path: process.env.IS_OFFLINE ? './certificate.pdf' : null
-    });
+        const page = await browser.newPage();
 
-    await browser.close();
+        await page.setContent(content);
 
-    const s3 = new S3();
+        const pdf = await page.pdf({
+            format: 'a4',
+            landscape: true,
+            printBackground: true,
+            preferCSSPageSize: true,
+            path: process.env.IS_OFFLINE ? './certificate.pdf' : null
+        });
 
-    const bucketExists = await checkIfBucketExists(s3, 'certificateserverlessnodejs');
-    if (!bucketExists) {
+        await browser.close();
+
+        const s3 = new S3();
+
+        const bucketExists = await checkIfBucketExists(s3, 'certificateserverlessnodejs');
+        if (!bucketExists) {
+            await s3
+                .createBucket({
+                    Bucket: 'certificateserverlessnodejs'
+                })
+                .promise();
+        }
+
         await s3
-        .createBucket({
-            Bucket: 'certificateserverlessnodejs'
-        })
-        .promise();
+            .putObject({
+                Bucket: 'certificateserverlessnodejs',
+                Key: `${id}.pdf`,
+                ACL: 'public-read',
+                Body: pdf,
+                ContentType: 'application/pdf'
+            })
+            .promise();
+
+        return {
+            statusCode: 201,
+            body: JSON.stringify({
+                message: 'certificate created with success',
+                url: `https://certificateserverlessnodejs.s3.amazonaws.com/${id}.pdf`
+            })
+        }
     }
-
-    await s3
-        .putObject({
-            Bucket: 'certificateserverlessnodejs',
-            Key: `${id}.pdf`,
-            ACL: 'public-read',
-            Body: pdf,
-            ContentType: 'application/pdf'
-        })
-        .promise();
-
-    return {
-        statusCode: 201,
-        body: JSON.stringify({
-            message: 'certificate created with success',
-            url: `https://certificateserverlessnodejs.s3.amazonaws.com/${id}.pdf`
-        })
+    catch (error) {
+        return {
+            statusCode: 500,
+            body: JSON.stringify({
+                message: error.message || error,
+                stack: error.stack || ''
+            })
+        }
     }
 }
